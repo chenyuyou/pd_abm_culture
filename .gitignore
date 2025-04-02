@@ -1,0 +1,71 @@
+### Python基础规则（基于GitHub官方模板优化） ###
+# 编译和字节码文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# 虚拟环境和依赖
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# 构建/发布产物
+build/
+dist/
+*.egg-info/
+*.egg
+.installed.cfg
+
+# 日志与测试报告
+*.log
+logs/
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# IDE配置
+.vscode/
+.idea/
+.ropeproject
+.spyproject
+
+### 用户自定义数据输出规则 ###
+# 图形文件（屏蔽所有生成的图像）
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.eps
+plots/  # 图形输出目录
+
+# Excel及数据文件
+*.xlsx
+*.xls
+*.csv
+*.json
+data/output/  # 数据输出目录
+~$*.xlsx  # Excel临时文件
+
+# 其他二进制文件
+*.parquet
+*.feather
+*.h5
+
+# Jupyter相关输出
+.ipynb_checkpoints/
+*.ipynb
+
+### 系统文件 ###
+.DS_Store
+Thumbs.db
