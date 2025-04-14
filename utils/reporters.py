@@ -33,6 +33,53 @@ def get_std_culture(model):
     if len(culture_values) < 2:
         return 0.0
     return np.std(culture_values)
+
+
+# new
+
+# Example for reporters.py (needs refinement based on how you define type)
+def get_segregation_index(model, threshold=0.5):
+     # Assumes two types: A (C < threshold), B (C >= threshold)
+     # Or better: use initial C if you store it, or define fixed types
+     segregation_values = []
+     for agent in model.schedule.agents:
+         neighbors = model.grid.get_neighbors(agent.pos, moore=True, include_center=False)
+         if not neighbors: continue
+         
+         # Define agent's type (EXAMPLE ONLY - ADAPT THIS)
+         agent_type = 'A' if agent.C < threshold else 'B' 
+         
+         same_type_neighbors = 0
+         for neighbor in neighbors:
+             neighbor_type = 'A' if neighbor.C < threshold else 'B'
+             if agent_type == neighbor_type:
+                 same_type_neighbors += 1
+         segregation_values.append(same_type_neighbors / len(neighbors))
+     
+     if not segregation_values: return 0.0
+     return np.mean(segregation_values) 
+
+# Example for reporters.py (needs refinement)
+def get_cooperation_rate_by_type(model, cultural_type, threshold=0.5):
+     # cultural_type: 'A' or 'B'
+     # Define type logic (EXAMPLE ONLY - ADAPT THIS)
+     group_agents = []
+     for agent in model.schedule.agents:
+          agent_c_type = 'A' if agent.C < threshold else 'B'
+          if agent_c_type == cultural_type:
+               group_agents.append(agent)
+
+     if not group_agents: return 0.0
+     cooperator_count = sum([1 for agent in group_agents if agent.strategy == 1])
+     return cooperator_count / len(group_agents)
+
+def get_cooperation_rate_A(model):
+    return get_cooperation_rate_by_type(model, 'A')
+
+def get_cooperation_rate_B(model):
+    return get_cooperation_rate_by_type(model, 'B')
+
+
 # --- End Added Reporters ---
 
 # </FILE_CONTENT>

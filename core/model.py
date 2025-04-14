@@ -65,14 +65,29 @@ class CulturalGame(Model):
             self.schedule.add(agent)  # 将agent添加到调度器中
 
         # 设置数据收集
-        self.datacollector = DataCollector(  # 创建数据收集器
-            model_reporters={  # 定义模型层面的数据收集
-                "CooperationRate": get_cooperation_rate,  # 收集合作率
-                "AverageCulture": get_average_culture,  # 收集平均文化值
-                "StdCulture": get_std_culture  # 收集文化值标准差
-            },
-        )
-        self.datacollector.collect(self)  # 收集初始数据
+# Example modification in model.py __init__
+
+# Decide which reporters to use based on simulation type (e.g., add a param 'run_type')
+# Or, more simply, always include them if they exist in reporters.py
+        model_reporters={
+            "CooperationRate": get_cooperation_rate,
+            "AverageCulture": get_average_culture,
+            "StdCulture": get_std_culture
+        }
+        # Conditionally add reporters needed for specific plots if desired
+        # For simplicity here, we assume they are always added if defined
+        try:
+            from utils.reporters import get_segregation_index, get_cooperation_rate_A, get_cooperation_rate_B
+            model_reporters["SegregationIndex"] = get_segregation_index
+            model_reporters["CoopRate_A"] = get_cooperation_rate_A # Use names matching plotting script expectations
+            model_reporters["CoopRate_B"] = get_cooperation_rate_B # Use names matching plotting script expectations
+#            print("Successfully added Segregation and Group Cooperation reporters.")
+        except ImportError:
+            print("Warning: Segregation/Group Cooperation reporters not found. Plots 3 and 5 may fail.")
+
+
+        self.datacollector = DataCollector(model_reporters=model_reporters)
+
 
     def _generate_culture(self):
         """生成文化值"""
