@@ -38,8 +38,8 @@ class CulturalAgent(Agent):
             # 在我们的BaseScheduler设置中，所有策略都来自上一步骤，这是正确的
             my_payoff, neighbor_payoff = self.model.payoff_matrix[self.strategy][neighbor.strategy]
             # 计算文化效用: 结合自身收益和邻居收益，权重由文化参数C决定
-            self.current_utility += self.C * my_payoff + (1 - self.C) * neighbor_payoff
-#            self.current_utility +=  (1-self.C)*my_payoff + self.C * neighbor_payoff
+#            self.current_utility += self.C * my_payoff + (1 - self.C) * neighbor_payoff
+            self.current_utility +=  (1-self.C)*my_payoff + self.C * neighbor_payoff
 #            self.current_utility +=  my_payoff + self.C * neighbor_payoff
 
 #        print(f"Agent {self.unique_id} utility: {self.current_utility}")

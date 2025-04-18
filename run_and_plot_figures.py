@@ -29,11 +29,11 @@ PARAMS = {
     'steps': 500,       # Simulation steps per run
     'steady_state_window': 100, # Steps at the end to average over
     'runs_per_b': 5,    # Number of independent runs for each 'b' value to average
-    'b_values': np.linspace(1.0, 2.0, 11), # Range of temptation 'b'
+    'b_values': np.linspace(1.0, 20, 11), # Range of temptation 'b'
 
     # --- Baseline Specific ---
-    'baseline_C_values': {'Individualist (C=0.1)': 0.1, 'Collectivist (C=0.9)': 0.9},
-
+#    'baseline_C_values': {'Individualist (C=0.1)': 0.1, 'Collectivist (C=0.9)': 0.9},
+    'baseline_C_values': {f'C={c:.1f}': c for c in np.arange(0, 1.1, 0.1)},
     # --- Heterogeneous Specific ---
     'hetero_C_dist': 'bimodal', # Initial distribution for Figs 3, 4, 5
     'hetero_mu': 0.5,         # Initial mix (e.g., 50/50 for bimodal)
@@ -43,7 +43,7 @@ PARAMS = {
     'hetero_p_mut': 0.001,    # Cultural mutation rate
 
     # --- Snapshot Specific ---
-    'snapshot_b_values': [1.1, 1.6], # Example b values for snapshots
+    'snapshot_b_values': [15, 25], # Example b values for snapshots
     'snapshot_hetero_params': { # Use hetero params for snapshot runs
          'C_dist': 'bimodal', 'mu': 0.5, 'sigma': 0.1,
          'K_C': 0.1, 'p_update_C': 0.1, 'p_mut': 0.001
@@ -292,17 +292,31 @@ def run_and_save_snapshot(params, b_value, filename_tag):
         return snapshot_filename
 
     print(f"Running simulation for snapshot (b={b_value:.2f})...")
-    sim_params = {
-        'L': PARAMS['L'], 'initial_coop_ratio': PARAMS['initial_coop_ratio'],
-        'K': PARAMS['K'], 'steps': PARAMS['steps'],
-        'b': b_value,
-        'C_dist': params['C_dist'], 'mu': params['mu'], 'sigma': params['sigma'],
-        'K_C': params['K_C'], 'p_update_C': params['p_update_C'], 'p_mut': params['p_mut'],
-        'seed': int(time.time()) # Use a different seed for snapshot run
-    }
 
-    model = CulturalGame(**sim_params)
-    model.run_model(params['steps'])
+    # --- CORRECTED PARAMETER HANDLING ---
+    # 1. Parameters for model initialization (based on CulturalGame.__init__)
+    model_init_params = {
+        'L': PARAMS['L'],
+        'initial_coop_ratio': PARAMS['initial_coop_ratio'],
+        'K': PARAMS['K'],
+        'b': b_value,
+        'C_dist': params['C_dist'],
+        'mu': params['mu'],
+        'sigma': params['sigma'],
+        'K_C': params['K_C'],
+        'p_update_C': params['p_update_C'],
+        'p_mut': params['p_mut'],
+        'seed': int(time.time() * 1000) % (2**32 - 1) # Improved seed generation
+    }
+    # 2. Parameter for running the model
+    steps_to_run = PARAMS['steps'] # Get steps from the global PARAMS
+    # --- END CORRECTION ---
+
+    # Initialize the model using only the required __init__ parameters
+    model = CulturalGame(**model_init_params)
+
+    # Run the model for the specified number of steps
+    model.run_model(steps_to_run)
 
     # Extract final grid state
     grid_state = np.zeros((model.grid.width, model.grid.height, 3)) # x, y, [strategy, C, type]
@@ -315,6 +329,7 @@ def run_and_save_snapshot(params, b_value, filename_tag):
 
     for agent in model.schedule.agents:
         x, y = agent.pos
+        if x is None or y is None: continue # Skip if agent position is invalid
         strategy = agent.strategy # 0 or 1
         culture = agent.C         # 0 to 1
         agent_type = TYPE_A if culture < threshold else TYPE_B
@@ -325,11 +340,16 @@ def run_and_save_snapshot(params, b_value, filename_tag):
              agent_types[agent_type] = f"Type {'A' if agent_type == TYPE_A else 'B'} (C {'<' if agent_type == TYPE_A else '>='} {threshold})"
 
 
-    snapshot_data = {'grid': grid_state, 'params': sim_params, 'types': agent_types}
+    # Save parameters *used* for this specific run (including steps for context)
+    snapshot_params_saved = model_init_params.copy()
+    snapshot_params_saved['steps_run'] = steps_to_run # Add steps back for saving context
+
+    snapshot_data = {'grid': grid_state, 'params': snapshot_params_saved, 'types': agent_types}
     with open(snapshot_filename, 'wb') as f:
         pickle.dump(snapshot_data, f)
     print(f"Snapshot data saved to {snapshot_filename}")
     return snapshot_filename
+
 
 
 def plot_fig2_snapshot(snapshot_data_file, filename="plot_fig2_snapshot.png"):
