@@ -56,6 +56,7 @@ plots/  # 图形输出目录
 *.json
 data/output/  # 数据输出目录
 ~$*.xlsx  # Excel临时文件
+*.pkl
 
 # 其他二进制文件
 *.parquet
