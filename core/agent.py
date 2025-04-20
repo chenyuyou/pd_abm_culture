@@ -38,68 +38,9 @@ class CulturalAgent(Agent):
             # 在我们的BaseScheduler设置中，所有策略都来自上一步骤，这是正确的
             my_payoff, neighbor_payoff = self.model.payoff_matrix[self.strategy][neighbor.strategy]
             # 计算文化效用: 结合自身收益和邻居收益，权重由文化参数C决定
-#            self.current_utility += self.C * my_payoff + (1 - self.C) * neighbor_payoff
+
             self.current_utility +=  (1-self.C)*my_payoff + self.C * neighbor_payoff
 #            self.current_utility +=  my_payoff + self.C * neighbor_payoff
-
-#        print(f"Agent {self.unique_id} utility: {self.current_utility}")
-
-# agent.py
-
-
-    def calculate_utility1(self):
-        """基于与邻居的交互计算智能体的效用(方法1)"""
-        # print(f"--- Step {self.model.schedule.steps}, Agent {self.unique_id} Calculating Utility ---") # 调试用：取消注释可跟踪智能体
-        self.current_utility = 0.0 # 确保每次计算前都重置为0
-
-        neighbors = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False)
-
-        if not neighbors:
-            return # 没有邻居，效用就是0
-
-        for i, neighbor in enumerate(neighbors):
-            try:
-                # --- 1. 获取收益矩阵中的收益值 ---
-                payoffs = self.model.payoff_matrix[self.strategy][neighbor.strategy]
-                my_payoff, neighbor_payoff = payoffs
-
-                # --- 2. 收益值检查 ---
-                # 检查收益值是否为零
-                payoff_is_zero = (my_payoff == 0 and neighbor_payoff == 0) # 检查双方收益是否都为零
-                payoff_one_is_zero = (my_payoff == 0 or neighbor_payoff == 0) # 检查是否至少一方收益为零
-
-                # 调试选项：
-                # 选项 A: 打印所有交互的收益值
-                # print(f"  DEBUG PAYOFF: A{self.unique_id}(S={self.strategy}) vs N{neighbor.unique_id}(S={neighbor.strategy}) -> Payoffs: My={my_payoff}, Neighbor={neighbor_payoff}")
-
-                # 选项 B: 只打印零收益情况(推荐)
-#                if payoff_one_is_zero: # 如果你更关心是否 *至少一个* 是零
-#                     print(f"  DEBUG **ZERO PAYOFF DETECTED**: A{self.unique_id}(S={self.strategy}, C={self.C:.2f}) interacts with N{neighbor.unique_id}(S={neighbor.strategy}) -> Payoffs: My={my_payoff}, Neighbor={neighbor_payoff}")
-                # else:
-                     # 如果需要，也可以打印非零的情况
-                     # print(f"  DEBUG NON-ZERO PAYOFF: A{self.unique_id}(S={self.strategy}) vs N{neighbor.unique_id}(S={neighbor.strategy}) -> Payoffs: My={my_payoff}, Neighbor={neighbor_payoff}")
-
-                # --- 3. 继续计算效用 (使用获取到的 my_payoff 和 neighbor_payoff) ---
-                if self.C is None or np.isnan(self.C):
-                     print(f"    ERROR: Agent {self.unique_id}'s Culture (C) is invalid: {self.C}")
-                     interaction_utility_contribution = my_payoff
-                else:
-                     interaction_utility_contribution = my_payoff + self.C * neighbor_payoff
-
-                self.current_utility += interaction_utility_contribution
-
-
-            except KeyError:
-                # 当策略值不是预期的0或1时，访问收益矩阵会抛出KeyError
-                print(f"    ERROR: Invalid strategy key accessing payoff matrix! My strategy: {self.strategy}, Neighbor strategy: {neighbor.strategy}")
-                # 错误处理：将当前交互的收益设为0
-                my_payoff, neighbor_payoff = 0, 0 # 错误情况下默认收益为0
-                # 打印调试信息
-                print(f"  DEBUG **ERROR ZERO PAYOFF**: A{self.unique_id}(S={self.strategy}) vs N{neighbor.unique_id}(S={neighbor.strategy}) due to KeyError -> Setting Payoffs to 0")
-
-
-        # print(f"  Agent {self.unique_id}: FINAL Calculated Utility: {self.current_utility:.4f}") # 调试用：取消注释可查看最终计算出的效用
-
 
 
 
@@ -148,8 +89,8 @@ class CulturalAgent(Agent):
         # 根据概率决定是否采纳邻居策略
         if self.random.random() < prob_adopt:
             self.next_strategy = neighbor_to_compare.strategy  # 采纳邻居策略
-        else:
-            self.next_strategy = self.strategy  # 保持当前策略
+#        else:
+#            self.next_strategy = self.strategy  # 保持当前策略
 
 
 
@@ -213,10 +154,10 @@ class CulturalAgent(Agent):
         """
         if self.random.random() < self.model.p_mut:
             # 在[0,1]区间内均匀随机生成新的C值
-            self.C = self.random.uniform(0, 1)
+            mutated_C = self.random.uniform(0, 1)
             # 确保next_C与突变后的C值保持一致
             # 如果突变发生在advance()之后，我们直接修改self.C
-            self.next_C = self.C  # 保持next_C与突变后的C值一致
+            self.next_C = mutated_C  # 保持next_C与突变后的C值一致
 
     def advance(self):
         """

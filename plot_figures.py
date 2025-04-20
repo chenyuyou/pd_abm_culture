@@ -12,7 +12,7 @@ from matplotlib.patches import Patch # For custom legends
 # --- Assuming your project structure allows these imports ---
 # If not, adjust sys.path as needed
 try:
-    from core.model import CulturalGame
+    from core.model1 import CulturalGame
     from utils.reporters import get_cooperation_rate # Import others if needed directly
     # Make sure the modified reporters are available
 except ImportError as e:
@@ -31,7 +31,7 @@ PARAMS = {
     'steps': 500,       # Simulation steps per run
     'steady_state_window': 100, # Steps at the end to average over
     'runs_per_b': 5,    # Number of independent runs for each 'b' value to average
-    'b_values': np.linspace(1.0, 6, 6), # Range of temptation 'b'
+    'b_values': np.linspace(1.0, 10, 10), # Range of temptation 'b'
 
     # --- Baseline Specific ---
     'baseline_C_values': {f'C={c:.1f}': c for c in np.arange(0, 1.1, 0.1)},
