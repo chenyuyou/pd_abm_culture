@@ -61,25 +61,25 @@ PARAMS = {
 
     # --- Scan Parameters ---
     'L_values': [20, 30, 40, 50], # System sizes for FSS (adjust as needed)
-    'b_values': np.linspace(1.3, 7, 12), # Temptation 'b' (refine near transition!)
+    'b_values': np.linspace(1.3, 7.3, 13), # Temptation 'b' (refine near transition!)
 
     # --- Snapshot Specific ---
     'snapshot_L': 50, # L for snapshots (usually one of the larger ones)
     'snapshot_b_values': [1.8, 2.3, 2.8], # Example b values
 
     # --- Cluster Analysis Specific ---
-    'cluster_analysis_b_values': [1.6, 1.7, 1.8, 1.9, 2.0], # b values near transition for P(s)
+    'cluster_analysis_b_values': [1.8, 2.0, 2.2, 2.4, 2.6, 2.8], # b values near transition for P(s)
 
     # --- Phase Diagram Specific (Example: Scan b vs K_C) ---
     'phasediagram_L': 40,        # Fixed L for phase diagram
     'phasediagram_param1_name': 'b',
-    'phasediagram_param1_values': np.linspace(1.3, 7.0, 12),
+    'phasediagram_param1_values': np.linspace(1.3, 7.3, 13),
     'phasediagram_param2_name': 'K_C',
-    'phasediagram_param2_values': np.linspace(0.01, 0.5, 16),
+    'phasediagram_param2_values': np.linspace(0.01, 0.91, 10),
     'phasediagram_target_reporter': 'avg_CooperationRate', # What to plot
 
     # --- FSS Parameters (REVISE after seeing peaks!) ---
-    'fss_bc_estimate': 2.1,          # Initial guess for critical b (Cooperation)
+    'fss_bc_estimate': 2.4,          # Initial guess for critical b (Cooperation)
     # IMPORTANT: These should be estimates for the *actual* exponents, not ratios
     'fss_beta_estimate': 0.125,      # Example: ~Ising 2D beta=1/8
     'fss_gamma_estimate': 1.75,      # Example: ~Ising 2D gamma=7/4
