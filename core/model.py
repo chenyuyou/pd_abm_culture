@@ -2,57 +2,71 @@
 import numpy as np
 from mesa import Model
 from mesa.space import SingleGrid
-# Import StagedActivation
-from mesa.time import StagedActivation # Correct import
+from mesa.time import StagedActivation
 from mesa.datacollection import DataCollector
 import pandas as pd
+from tqdm import tqdm
+# --- Import Agents and Reporters ---
+try:
+    from core.agent import CulturalAgent
+    from utils.reporters import (
+        get_cooperation_rate,
+        get_average_culture,
+        get_std_culture,
+        get_segregation_index,
+        get_cooperation_rate_A,
+        get_cooperation_rate_B,
+        # --- Ensure NEW reporters are imported correctly ---
+        get_cluster_size_distribution,
+        get_boundary_fraction,
+        get_boundary_coop_rate,
+        get_bulk_coop_rate
+    )
+    REPORTERS_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Error importing modules: {e}")
+    print("Reporters might not be available. Using placeholders.")
+    REPORTERS_AVAILABLE = False
+    # Define dummy functions if imports fail
+    def get_cooperation_rate(model): return np.nan
+    def get_average_culture(model): return np.nan
+    def get_std_culture(model): return np.nan
+    def get_segregation_index(model): return np.nan
+    def get_cooperation_rate_A(model): return np.nan
+    def get_cooperation_rate_B(model): return np.nan
+    def get_cluster_size_distribution(model): return {'A': [], 'B': []} # Return empty dict
+    def get_boundary_fraction(model): return np.nan
+    def get_boundary_coop_rate(model): return np.nan
+    def get_bulk_coop_rate(model): return np.nan
 
-from core.agent import CulturalAgent
-from utils.reporters import get_cooperation_rate # Ensure this is available
-
-# --- Data collection functions (keep as is) ---
-def get_average_culture(model):
-    # ... (no change)
-    if not model.schedule.agents: return 0
-    return np.mean([agent.C for agent in model.schedule.agents])
-
-def get_std_culture(model):
-    # ... (no change)
-    if len(model.schedule.agents) < 2: return 0
-    return np.std([agent.C for agent in model.schedule.agents])
-# --- End data collection functions ---
 
 class CulturalGame(Model):
     """
-    文化博弈模型 (Using Multi-Stage StagedActivation)
+    Cultural Game Model with Staged Activation and Enhanced Data Collection.
     """
-    def __init__(self, L=50, initial_coop_ratio=0.5, b=1.5, K=0.5,
+    def __init__(self, L=50, initial_coop_ratio=0.5, b=1.5, K=0.1,
                  C_dist="uniform", mu=0.5, sigma=0.1, seed=None,
                  K_C=0.1, p_update_C=0.1, p_mut=0.001):
 
         super().__init__(seed=seed)
+        self.random = np.random.default_rng(self._seed)
         self.grid = SingleGrid(L, L, torus=True)
 
-        # --- Use StagedActivation with Multiple Stages ---
-        # Define the stages in the exact order they should run for ALL agents
         stage_list = [
-            "calculate_utility",        # Stage 1: All agents calculate utility
-            "decide_strategy_update",   # Stage 2: All agents decide next strategy
-            "decide_culture_update",    # Stage 3: All agents decide next culture
-            "mutate_culture",           # Stage 4: All agents potentially mutate next culture
-            "advance"                   # Stage 5: All agents apply the updates
+            "calculate_utility",
+            "decide_strategy_update",
+            "decide_culture_update",
+            "mutate_culture", # Ensure mutation happens before advance if it modifies next_C
+            "advance"
         ]
-        # The method names in the agent match the stage names
+        # NOTE: If mutate_culture modifies self.C directly, it should happen AFTER advance.
+        # If it modifies self.next_C, it should happen BEFORE advance.
+        # Let's assume it modifies self.next_C based on the agent code.
         self.schedule = StagedActivation(self, stage_list=stage_list, shuffle=False, shuffle_between_stages=False)
-        # shuffle=False: Agents activate in the order they were added within each stage.
-        # shuffle_between_stages=False: The order is maintained across stages.
-        # If order doesn't matter, you can set shuffle=True.
-        # --- End Scheduler Change ---
 
         self.L = L
         self.b = b
         self.K = K
-        # ... (rest of parameters are the same) ...
         self.C_dist = C_dist
         self.mu = mu
         self.sigma = sigma
@@ -61,61 +75,102 @@ class CulturalGame(Model):
         self.p_update_C = p_update_C
         self.p_mut = p_mut
 
-        self.payoff_matrix = { # ... (no change) ...
-            1: {1: (1, 1), 0: (0, self.b)},
-            0: {1: (self.b, 0), 0: (0, 0)}
+        self.payoff_matrix = {
+            1: {1: (1, 1), 0: (0, b)}, # Note: Payoffs should be (my_payoff, neighbor_payoff) structure if matrix lookup does that. Usually it's just my_payoff. Let's assume it gives MY payoff.
+            0: {1: (b, 0), 0: (0, 0)}  # Payoff when I am Row player, neighbor is Col player
         }
+        # Revisit agent utility calculation if payoff matrix interpretation is different.
+        # The agent code calculates Utility = sum[(1-C)*my_payoff + C*neighbor_payoff].
+        # Let's assume the payoff matrix gives (my_payoff, neighbor_payoff) for (my_strat, neighbor_strat).
+        # If payoff matrix only gives my payoff, the agent code needs neighbor's payoff by reversing roles.
+        # Example: my_payoff = self.model.payoff_matrix[self.strategy][neighbor.strategy]
+        # neighbor_payoff = self.model.payoff_matrix[neighbor.strategy][self.strategy]
+        # utility += (1-self.C)*my_payoff + self.C*neighbor_payoff
+        # --> Let's assume the current agent code is correct and the payoff matrix provides tuples.
 
-        # --- Agent Initialization (No change needed) ---
         for _, pos in self.grid.coord_iter():
-            # ... (no change) ...
             strategy = 1 if self.random.random() < initial_coop_ratio else 0
             C_value = self._generate_culture()
             agent = CulturalAgent(self.next_id(), self, strategy, C_value)
             self.grid.place_agent(agent, pos)
             self.schedule.add(agent)
 
-        # --- Data Collection (No change needed) ---
-        model_reporters={ # ... (no change) ...
-            "CooperationRate": get_cooperation_rate,
-            "AverageCulture": get_average_culture,
-            "StdCulture": get_std_culture
-        }
-        try: # ... (no change) ...
-            from utils.reporters import get_segregation_index, get_cooperation_rate_A, get_cooperation_rate_B
-            model_reporters["SegregationIndex"] = get_segregation_index
-            model_reporters["CoopRate_A"] = get_cooperation_rate_A
-            model_reporters["CoopRate_B"] = get_cooperation_rate_B
-        except ImportError:
-            print("Warning: Segregation/Group Cooperation reporters not found.")
+        # --- Data Collection Setup ---
+        model_reporters = {}
+        if REPORTERS_AVAILABLE:
+            model_reporters = {
+                "CooperationRate": get_cooperation_rate,
+                "AverageCulture": get_average_culture,
+                "StdCulture": get_std_culture,
+                "SegregationIndex": get_segregation_index,
+                "CoopRate_A": get_cooperation_rate_A,
+                "CoopRate_B": get_cooperation_rate_B,
+                # --- Add NEW reporters ---
+                "ClusterSizeDistribution": get_cluster_size_distribution, # Returns dict {'A':[], 'B':[]}
+                "BoundaryFraction": get_boundary_fraction,
+                "BoundaryCoopRate": get_boundary_coop_rate,
+                "BulkCoopRate": get_bulk_coop_rate
+            }
+            print(f"DataCollector activated with reporters: {list(model_reporters.keys())}")
+        else:
+             print("DataCollector running with placeholder reporters.")
+             model_reporters = { # Use dummies if import failed
+                "CooperationRate": get_cooperation_rate,
+                "AverageCulture": get_average_culture,
+                "StdCulture": get_std_culture,
+                "SegregationIndex": get_segregation_index,
+                "ClusterSizeDistribution": get_cluster_size_distribution,
+                "BoundaryFraction": get_boundary_fraction,
+                "BoundaryCoopRate": get_boundary_coop_rate,
+                "BulkCoopRate": get_bulk_coop_rate
+            }
+
         self.datacollector = DataCollector(model_reporters=model_reporters)
         # --- End Data Collection Setup ---
 
     def _generate_culture(self):
-        # --- (No change needed) ---
-        # ... (same logic) ...
+        # (No change needed)
         if self.C_dist == "uniform": return self.random.uniform(0, 1)
         elif self.C_dist == "bimodal":
-            if self.mu == 0.5: return self.random.choice([0.0, 1.0])
-            else: return self.random.choice([0.0, 1.0], p=[1 - self.mu, self.mu])
-        elif self.C_dist == "normal": return np.clip(self.random.normalvariate(self.mu, self.sigma), 0, 1)
+             # Split based on mu. If mu=0.5, 50% 0.0, 50% 1.0. If mu=0.1, 90% 0.0, 10% 1.0
+             return self.random.choice([0.0, 1.0], p=[1 - self.mu, self.mu])
+        elif self.C_dist == "normal": return np.clip(self.random.normal(self.mu, self.sigma), 0, 1) # Use np.random.normal
         elif self.C_dist == "fixed": return self.mu
         else: raise ValueError(f"Unsupported C distribution type: {self.C_dist}")
 
-    def step(self):
-        """
-        执行模型的一步。
-        StagedActivation 调度器现在将按 stage_list 中定义的顺序，
-        为所有智能体执行每个阶段对应的方法。
-        """
-        # The scheduler handles the multi-stage execution flow defined in __init__
-        self.schedule.step()
 
-        # Collect data after the final 'advance' stage is complete for all agents
-        self.datacollector.collect(self)
+    def step(self):
+        """Executes one step of the model."""
+        self.schedule.step()
+        try:
+            self.datacollector.collect(self)
+        except Exception as e:
+            print(f"Error during data collection at step {self.schedule.steps}: {e}")
+
 
     def run_model(self, n_steps):
-        """运行模型 (No change needed)"""
-        # ... (same logic) ...
-        for i in range(n_steps):
+        """Runs the model for n_steps."""
+        print(f"Starting model run (L={self.L}, b={self.b}, K={self.K}, K_C={self.K_C}, steps={n_steps})...")
+        for i in tqdm(range(n_steps), desc="Model Run", leave=False):
             self.step()
+        print("Model run finished.")
+
+# Example usage (remains the same)
+if __name__ == '__main__':
+    print("Testing CulturalGame model initialization...")
+    try:
+        model_instance = CulturalGame(L=10, steps=5)
+        print("Model initialized successfully.")
+        model_instance.run_model(2)
+        print("Model ran 2 steps successfully.")
+        if hasattr(model_instance, 'datacollector') and model_instance.datacollector.model_reporters:
+             model_df = model_instance.datacollector.get_model_vars_dataframe()
+             print("Collected data columns:", model_df.columns.tolist())
+             print("Sample data:\n", model_df.tail())
+        else:
+             print("No valid reporters found for data collection.")
+
+    except Exception as e:
+        print(f"Error during model test: {e}")
+        import traceback
+        traceback.print_exc()
