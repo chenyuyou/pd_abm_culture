@@ -61,14 +61,20 @@ PARAMS = {
 
     # --- Scan Parameters ---
     'L_values': [20, 30, 40, 50], # System sizes for FSS (adjust as needed)
-    'b_values': np.linspace(1.3, 7.3, 13), # Temptation 'b' (refine near transition!)
-
+#    'b_values': np.linspace(1.3, 7.3, 13), # Temptation 'b' (refine near transition!)
+    'b_values': np.unique(np.concatenate((
+        np.linspace(1.3, 1.9, 4),      # 低 b 区: 1.3, 1.5, 1.7, 1.9 (步长~0.2)
+        np.linspace(2.0, 3.0, 21),     # 临界区: 2.0, 2.05, 2.1, ..., 2.95, 3.0 (步长 0.05)
+        np.linspace(3.2, 4.0, 5),      # 过渡区: 3.2, 3.4, 3.6, 3.8, 4.0 (步长 0.2)
+        np.linspace(4.5, 7.0, 6)       # 高 b 区: 4.5, 5.0, 5.5, 6.0, 6.5, 7.0 (步长 0.5)
+        # np.linspace(3.5, 7.0, 8) # 另一种高 b 区选择 (步长 0.5)
+    ))),
     # --- Snapshot Specific ---
     'snapshot_L': 50, # L for snapshots (usually one of the larger ones)
-    'snapshot_b_values': [1.8, 2.3, 2.8], # Example b values
+    'snapshot_b_values': [1.8, 2.35, 3.0], # Example b values
 
     # --- Cluster Analysis Specific ---
-    'cluster_analysis_b_values': [1.8, 2.0, 2.2, 2.4, 2.6, 2.8], # b values near transition for P(s)
+    'cluster_analysis_b_values': [2.2, 2.3, 2.35, 2.4, 2.5, 2.6], # b values near transition for P(s)
 
     # --- Phase Diagram Specific (Example: Scan b vs K_C) ---
     'phasediagram_L': 40,        # Fixed L for phase diagram
@@ -79,7 +85,7 @@ PARAMS = {
     'phasediagram_target_reporter': 'avg_CooperationRate', # What to plot
 
     # --- FSS Parameters (REVISE after seeing peaks!) ---
-    'fss_bc_estimate': 2.4,          # Initial guess for critical b (Cooperation)
+    'fss_bc_estimate': 2.35,          # Initial guess for critical b (Cooperation)
     # IMPORTANT: These should be estimates for the *actual* exponents, not ratios
     'fss_beta_estimate': 0.125,      # Example: ~Ising 2D beta=1/8
     'fss_gamma_estimate': 1.75,      # Example: ~Ising 2D gamma=7/4
