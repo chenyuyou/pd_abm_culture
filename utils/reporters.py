@@ -1,8 +1,9 @@
 # reporters.py
 import numpy as np
-from collections import deque # Needed for BFS in cluster finding
+from collections import deque  # Needed for BFS in cluster finding
 
 # === Standard Reporters (Keep As Is) ===
+
 
 def get_cooperation_rate(model):
     """Calculate the fraction of cooperating agents (strategy=1) in the model."""
@@ -10,8 +11,10 @@ def get_cooperation_rate(model):
     if agent_count == 0:
         return 0.0
     # Ensure agents have 'strategy' attribute
-    cooperator_count = sum([1 for agent in model.schedule.agents if hasattr(agent, 'strategy') and agent.strategy == 1])
+    cooperator_count = sum([1 for agent in model.schedule.agents if hasattr(
+        agent, 'strategy') and agent.strategy == 1])
     return cooperator_count / agent_count
+
 
 def get_average_culture(model):
     """Calculates the average cultural value C across all agents."""
@@ -19,28 +22,33 @@ def get_average_culture(model):
     if agent_count == 0:
         return 0.0
     # Ensure agent.C exists and is numeric
-    culture_values = [agent.C for agent in model.schedule.agents if hasattr(agent, 'C')]
+    culture_values = [
+        agent.C for agent in model.schedule.agents if hasattr(agent, 'C')]
     if not culture_values:
-        return 0.0 # Or handle as an error/NaN if appropriate
+        return 0.0  # Or handle as an error/NaN if appropriate
     return np.mean(culture_values)
+
 
 def get_std_culture(model):
     """Calculates the standard deviation of cultural value C."""
     agent_count = model.schedule.get_agent_count()
-    if agent_count < 2: # Need at least 2 agents to calculate std dev
+    if agent_count < 2:  # Need at least 2 agents to calculate std dev
         return 0.0
-    culture_values = [agent.C for agent in model.schedule.agents if hasattr(agent, 'C')]
+    culture_values = [
+        agent.C for agent in model.schedule.agents if hasattr(agent, 'C')]
     if len(culture_values) < 2:
         return 0.0
     return np.std(culture_values)
 
 # === Segregation and Group-Specific Reporters (Keep/Refine) ===
 
+
 def _get_agent_type(agent, threshold=0.5):
     """Helper function to determine cultural type based on threshold."""
     if not hasattr(agent, 'C'):
-        return None # Agent has no culture attribute
+        return None  # Agent has no culture attribute
     return 'A' if agent.C < threshold else 'B'
+
 
 def get_segregation_index(model, threshold=0.5):
     """
@@ -54,28 +62,31 @@ def get_segregation_index(model, threshold=0.5):
 
     for agent in model.schedule.agents:
         agent_type = _get_agent_type(agent, threshold)
-        if agent_type is None: continue # Skip if agent has no type
+        if agent_type is None:
+            continue  # Skip if agent has no type
 
-        neighbors = model.grid.get_neighbors(agent.pos, moore=True, include_center=False)
+        neighbors = model.grid.get_neighbors(
+            agent.pos, moore=True, include_center=False)
         if not neighbors:
-            continue # Skip agent if it has no neighbors
+            continue  # Skip agent if it has no neighbors
 
         same_type_neighbors = 0
         valid_neighbors = 0
         for neighbor in neighbors:
             neighbor_type = _get_agent_type(neighbor, threshold)
-            if neighbor_type is not None: # Only consider neighbors with a defined type
-                 valid_neighbors += 1
-                 if agent_type == neighbor_type:
-                     same_type_neighbors += 1
+            if neighbor_type is not None:  # Only consider neighbors with a defined type
+                valid_neighbors += 1
+                if agent_type == neighbor_type:
+                    same_type_neighbors += 1
 
         if valid_neighbors > 0:
             total_similarity += same_type_neighbors / valid_neighbors
             agents_with_neighbors += 1
 
     if agents_with_neighbors == 0:
-        return 0.0 # Or np.nan, depending on desired handling
+        return 0.0  # Or np.nan, depending on desired handling
     return total_similarity / agents_with_neighbors
+
 
 def get_cooperation_rate_by_type(model, cultural_type, threshold=0.5):
     """
@@ -89,15 +100,18 @@ def get_cooperation_rate_by_type(model, cultural_type, threshold=0.5):
             group_agents.append(agent)
 
     if not group_agents:
-        return 0.0 # No agents of this type found
+        return 0.0  # No agents of this type found
 
     # Ensure agents have 'strategy' attribute
-    cooperator_count = sum([1 for agent in group_agents if hasattr(agent, 'strategy') and agent.strategy == 1])
+    cooperator_count = sum([1 for agent in group_agents if hasattr(
+        agent, 'strategy') and agent.strategy == 1])
     return cooperator_count / len(group_agents)
+
 
 def get_cooperation_rate_A(model, threshold=0.5):
     """Cooperation rate for Type A agents (C < threshold)."""
     return get_cooperation_rate_by_type(model, 'A', threshold)
+
 
 def get_cooperation_rate_B(model, threshold=0.5):
     """Cooperation rate for Type B agents (C >= threshold)."""
@@ -124,10 +138,11 @@ def get_cluster_size_distribution(model, threshold=0.5):
               Returns {'A': [], 'B': []} if no agents exist.
     """
     cluster_sizes = {'A': [], 'B': []}
-    visited = set() # Store (x, y) tuples of visited agents
+    visited = set()  # Store (x, y) tuples of visited agents
 
     # Create a mapping from position to agent for faster lookup during BFS
-    pos_to_agent = {agent.pos: agent for agent in model.schedule.agents if agent.pos is not None}
+    pos_to_agent = {
+        agent.pos: agent for agent in model.schedule.agents if agent.pos is not None}
 
     for agent in model.schedule.agents:
         if agent.pos is None or agent.pos in visited:
@@ -135,11 +150,11 @@ def get_cluster_size_distribution(model, threshold=0.5):
 
         agent_type = _get_agent_type(agent, threshold)
         if agent_type is None:
-            visited.add(agent.pos) # Mark as visited even if no type
+            visited.add(agent.pos)  # Mark as visited even if no type
             continue
 
         current_cluster_size = 0
-        queue = deque([agent.pos]) # Queue for BFS, stores positions
+        queue = deque([agent.pos])  # Queue for BFS, stores positions
         visited.add(agent.pos)
 
         while queue:
@@ -147,7 +162,8 @@ def get_cluster_size_distribution(model, threshold=0.5):
             current_cluster_size += 1
 
             # Find neighbors of the current position
-            neighbor_coords = model.grid.get_neighborhood(current_pos, moore=True, include_center=False)
+            neighbor_coords = model.grid.get_neighborhood(
+                current_pos, moore=True, include_center=False)
 
             for neighbor_pos in neighbor_coords:
                 if neighbor_pos not in visited and neighbor_pos in pos_to_agent:
@@ -163,8 +179,10 @@ def get_cluster_size_distribution(model, threshold=0.5):
         cluster_sizes[agent_type].append(current_cluster_size)
 
     # Handle cases where one type might have no agents/clusters
-    if not cluster_sizes['A']: cluster_sizes['A'] = []
-    if not cluster_sizes['B']: cluster_sizes['B'] = []
+    if not cluster_sizes['A']:
+        cluster_sizes['A'] = []
+    if not cluster_sizes['B']:
+        cluster_sizes['B'] = []
 
     return cluster_sizes
 
@@ -185,10 +203,13 @@ def get_boundary_fraction(model, threshold=0.5):
 
     for agent in model.schedule.agents:
         agent_type = _get_agent_type(agent, threshold)
-        if agent_type is None: continue
+        if agent_type is None:
+            continue
 
-        neighbors = model.grid.get_neighbors(agent.pos, moore=True, include_center=False)
-        if not neighbors: continue # Skip agents without neighbors
+        neighbors = model.grid.get_neighbors(
+            agent.pos, moore=True, include_center=False)
+        if not neighbors:
+            continue  # Skip agents without neighbors
 
         is_boundary = False
         for neighbor in neighbors:
@@ -196,7 +217,7 @@ def get_boundary_fraction(model, threshold=0.5):
             # If neighbor has a type AND it's different from the agent's type
             if neighbor_type is not None and neighbor_type != agent_type:
                 is_boundary = True
-                break # Found one different neighbor, agent is on boundary
+                break  # Found one different neighbor, agent is on boundary
 
         if is_boundary:
             boundary_agent_count += 1
@@ -212,10 +233,13 @@ def get_boundary_coop_rate(model, threshold=0.5):
     boundary_agents = []
     for agent in model.schedule.agents:
         agent_type = _get_agent_type(agent, threshold)
-        if agent_type is None: continue
+        if agent_type is None:
+            continue
 
-        neighbors = model.grid.get_neighbors(agent.pos, moore=True, include_center=False)
-        if not neighbors: continue
+        neighbors = model.grid.get_neighbors(
+            agent.pos, moore=True, include_center=False)
+        if not neighbors:
+            continue
 
         is_boundary = False
         for neighbor in neighbors:
@@ -228,11 +252,13 @@ def get_boundary_coop_rate(model, threshold=0.5):
             boundary_agents.append(agent)
 
     if not boundary_agents:
-        return 0.0 # Or np.nan - No boundary agents found
+        return 0.0  # Or np.nan - No boundary agents found
 
     # Ensure agents have strategy attribute
-    cooperator_count = sum([1 for agent in boundary_agents if hasattr(agent, 'strategy') and agent.strategy == 1])
+    cooperator_count = sum([1 for agent in boundary_agents if hasattr(
+        agent, 'strategy') and agent.strategy == 1])
     return cooperator_count / len(boundary_agents)
+
 
 def get_bulk_coop_rate(model, threshold=0.5):
     """
@@ -243,15 +269,18 @@ def get_bulk_coop_rate(model, threshold=0.5):
     bulk_agents = []
     for agent in model.schedule.agents:
         agent_type = _get_agent_type(agent, threshold)
-        if agent_type is None: continue
+        if agent_type is None:
+            continue
 
-        neighbors = model.grid.get_neighbors(agent.pos, moore=True, include_center=False)
+        neighbors = model.grid.get_neighbors(
+            agent.pos, moore=True, include_center=False)
 
         # Agents with no neighbors are arguably not 'bulk' or 'boundary' - skip them?
         # Or consider them bulk? Let's skip them for now for a clearer definition.
-        if not neighbors: continue
+        if not neighbors:
+            continue
 
-        is_bulk = True # Assume bulk initially
+        is_bulk = True  # Assume bulk initially
         for neighbor in neighbors:
             neighbor_type = _get_agent_type(neighbor, threshold)
             # If neighbor has a type AND it's different, agent is NOT bulk
@@ -268,10 +297,11 @@ def get_bulk_coop_rate(model, threshold=0.5):
             bulk_agents.append(agent)
 
     if not bulk_agents:
-        return 0.0 # Or np.nan - No bulk agents found
+        return 0.0  # Or np.nan - No bulk agents found
 
     # Ensure agents have strategy attribute
-    cooperator_count = sum([1 for agent in bulk_agents if hasattr(agent, 'strategy') and agent.strategy == 1])
+    cooperator_count = sum([1 for agent in bulk_agents if hasattr(
+        agent, 'strategy') and agent.strategy == 1])
     return cooperator_count / len(bulk_agents)
 
 # --- End NEW Reporters ---

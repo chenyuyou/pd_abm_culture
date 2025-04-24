@@ -1,11 +1,13 @@
 import numpy as np
 from mesa import Agent
 
+
 class CulturalAgent(Agent):
     """
     一个在空间囚徒困境中具有文化效用并通过成功偏向模仿进行内生文化演化的智能体
     An agent in spatial prisoner's dilemma with cultural utility that evolves endogenously through success-biased imitation
     """
+
     def __init__(self, unique_id, model, initial_strategy, C):
         """
         初始化文化智能体
@@ -18,37 +20,36 @@ class CulturalAgent(Agent):
         super().__init__(unique_id, model)
         self.strategy = initial_strategy  # 1 for C, 0 for D
         self.C = C                        # Cultural parameter [0, 1]
-        self.next_strategy = self.strategy # Initialize next strategy
+        self.next_strategy = self.strategy  # Initialize next strategy
         self.next_C = self.C              # Initialize next C value
         self.current_utility = 0.0        # 当前效用值
 
     def calculate_utility(self):
         """
-        基于与邻居的交互计算智能体的效用
-        计算方法: 效用 = Σ(自身收益 * C + 邻居收益 * (1-C))
+        基于与邻居的交互计算智能体的效用 (累积文化权重效用)
+        计算方法: 效用 = Σ [ (1-C) * 自身收益 + C * 邻居收益 ]
         """
         self.current_utility = 0.0  # 重置当前效用值
-        neighbors = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False)
+        neighbors = self.model.grid.get_neighbors(
+            self.pos, moore=True, include_center=False)
 
         if not neighbors:
             return  # 如果没有邻居，效用保持为0
-        
+
         for neighbor in neighbors:
             # 确保邻居已计算其当前步骤的策略(如果需要)
             # 在我们的BaseScheduler设置中，所有策略都来自上一步骤，这是正确的
             my_payoff, neighbor_payoff = self.model.payoff_matrix[self.strategy][neighbor.strategy]
             # 计算文化效用: 结合自身收益和邻居收益，权重由文化参数C决定
 
-            self.current_utility +=  (1-self.C)*my_payoff + self.C * neighbor_payoff
+            self.current_utility += (1-self.C) * \
+                my_payoff + self.C * neighbor_payoff
 #            self.current_utility +=  my_payoff + self.C * neighbor_payoff
 
-
-
-
-    def decide_strategy_update(self): # 从 select_next_strategy 重命名而来
+    def decide_strategy_update(self):  # 从 select_next_strategy 重命名而来
         """
         使用费米规则确定智能体下一步的策略
-        
+
         机制详解:
         1. 随机选择一个邻居进行比较
         2. 计算效用差: ΔU = 邻居效用 - 自身效用
@@ -57,14 +58,15 @@ class CulturalAgent(Agent):
            - 当K→0时变为确定性选择(优胜劣汰)
            - 当K较大时选择更随机
         4. 根据概率决定是否采纳邻居策略
-        
+
         边界情况处理:
         1. 当K接近0时，直接根据效用差决定(确定性选择)
         2. 当ΔU/K过大时，进行数值溢出保护
         """
-        self.next_strategy = self.strategy # 默认：保持当前策略
+        self.next_strategy = self.strategy  # 默认：保持当前策略
 
-        neighbors = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False)
+        neighbors = self.model.grid.get_neighbors(
+            self.pos, moore=True, include_center=False)
         if not neighbors:
             return
 
@@ -72,7 +74,7 @@ class CulturalAgent(Agent):
         delta_utility = neighbor_to_compare.current_utility - self.current_utility
 
         # 处理K接近0的边界情况（避免除以极小值）
-        if self.model.K < 1e-9: # 使用极小阈值代替等于0的判断
+        if self.model.K < 1e-9:  # 使用极小阈值代替等于0的判断
             # 确定性选择：邻居效用更高则必然采纳
             prob_adopt = 1.0 if delta_utility > 0 else 0.0
         else:
@@ -85,20 +87,17 @@ class CulturalAgent(Agent):
             else:
                 # 安全计算指数函数
                 prob_adopt = 1 / (1 + np.exp(argument))
-        
+
         # 根据概率决定是否采纳邻居策略
         if self.random.random() < prob_adopt:
             self.next_strategy = neighbor_to_compare.strategy  # 采纳邻居策略
 #        else:
 #            self.next_strategy = self.strategy  # 保持当前策略
 
-
-
-
     def decide_culture_update(self):
         """
         基于效用，以p_update_C的概率使用费米规则确定智能体下一步的文化值C
-        
+
         文化更新机制详解:
         1. 更新触发: 以概率p_update_C决定是否尝试更新(控制更新频率)
         2. 邻居选择: 随机选择一个邻居进行比较
@@ -108,16 +107,17 @@ class CulturalAgent(Agent):
            - 当K_C→0时变为确定性选择(优胜劣汰)
            - 当K_C较大时选择更随机
         5. 文化采纳: 根据概率决定是否采纳邻居的C值
-        
+
         边界情况处理:
         1. 当K_C接近0时，直接根据效用差决定(确定性选择)
         2. 当没有邻居时跳过更新
         """
-        self.next_C = self.C # 默认保持当前文化值
+        self.next_C = self.C  # 默认保持当前文化值
 
         # 以p_update_C的概率尝试文化更新
         if self.random.random() < self.model.p_update_C:
-            neighbors = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False)
+            neighbors = self.model.grid.get_neighbors(
+                self.pos, moore=True, include_center=False)
             if not neighbors:
                 return  # 没有邻居则跳过更新
 
@@ -130,51 +130,46 @@ class CulturalAgent(Agent):
                 prob_adopt_culture = 1.0 if delta_utility > 0 else 0.0  # 确定性选择
             else:
                 # 使用费米函数计算概率
-                prob_adopt_culture = 1 / (1 + np.exp(-delta_utility / self.model.K_C))
+                prob_adopt_culture = 1 / \
+                    (1 + np.exp(-delta_utility / self.model.K_C))
 
             # 根据概率决定是否采纳邻居的文化参数
             if self.random.random() < prob_adopt_culture:
                 self.next_C = neighbor_to_compare.C  # 采纳邻居的文化参数
 
-    def mutate_culture(self):
+    def mutate(self):
         """
-        以p_mut的概率对文化值C进行随机突变
-        
-        突变机制详解:
-        1. 突变触发: 以概率p_mut决定是否发生突变(控制突变频率)
-        2. 突变生成: 在[0,1]区间内均匀随机生成新的C值
-           - 完全随机探索文化参数空间
-           - 不依赖于邻居或效用比较
-        3. 状态同步: 确保next_C与突变后的C值保持一致
-        
-        边界情况处理:
-        1. 突变概率p_mut=0时完全禁用突变
-        2. 突变概率p_mut=1时每个时间步都强制突变
-        3. 突变后的C值自动保持在[0,1]有效范围内
+        以p_mut_culture的概率对文化值C进行随机突变。
+        以p_mut_strategy的概率对策略进行随机突变。
+        这两个突变过程是相互独立的。
         """
-        if self.random.random() < self.model.p_mut:
-            # 在[0,1]区间内均匀随机生成新的C值
+
+        # 文化突变部分 (使用 p_mut_culture)
+        if self.random.random() < self.model.p_mut_culture:  # Use correct param
             mutated_C = self.random.uniform(0, 1)
-            # 确保next_C与突变后的C值保持一致
-            # 如果突变发生在advance()之后，我们直接修改self.C
-            self.next_C = mutated_C  # 保持next_C与突变后的C值一致
+            self.next_C = mutated_C
+
+        # 策略突变部分 (使用 p_mut_strategy)
+        if self.random.random() < self.model.p_mut_strategy:  # Use correct param
+            mutated_strategy = self.random.choice([0, 1])
+            self.next_strategy = mutated_strategy
 
     def advance(self):
         """
         应用确定的下一个策略和文化值
-        
+
         状态更新机制详解:
         1. 策略更新: 将next_strategy赋值给当前strategy
            - next_strategy由decide_strategy_update()方法确定
         2. 文化更新: 将next_C赋值给当前C
            - next_C由decide_culture_update()方法确定
         3. 状态同步: 确保所有智能体同步更新状态
-        
+
         调用关系说明:
         1. 由调度器的step()函数调用
         2. 在decide_strategy_update()和decide_culture_update()之后执行
         3. 在mutate_culture()之前执行
-        
+
         重要注意事项:
         1. 该方法不包含任何决策逻辑，仅执行状态更新
         2. 突变(mutation)在模型的主循环中单独处理(在advance之后)
@@ -183,7 +178,6 @@ class CulturalAgent(Agent):
         self.strategy = self.next_strategy  # 更新策略
         self.C = self.next_C                # 更新文化参数
         # 突变(mutation)在模型的主循环中单独处理(在advance之后)
-
 
     # Remove the old step() method as its logic is now split
     # def step(self):

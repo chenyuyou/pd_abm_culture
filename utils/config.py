@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 import numpy as np
 import itertools
 from typing import List, Dict, Any
-from dataclasses import dataclass, field, fields # Import fields
+from dataclasses import dataclass, field, fields  # Import fields
+
 
 @dataclass
 class SimConfig:
@@ -14,14 +15,16 @@ class SimConfig:
     K: float = 0.1
 
     # Cultural Parameters (Initial Distribution)
-    C_dist: str = "uniform" # Options: "uniform", "normal", "bimodal", "fixed"
-    mu: float = 0.5      # Meaning depends on C_dist (e.g., mean for normal, fixed value, p(C=1) for bimodal)
+    C_dist: str = "uniform"  # Options: "uniform", "normal", "bimodal", "fixed"
+    # Meaning depends on C_dist (e.g., mean for normal, fixed value, p(C=1) for bimodal)
+    mu: float = 0.5
     sigma: float = 0.1   # Std dev for normal distribution
 
     # Cultural Evolution Parameters
     K_C: float = 0.1         # Noise in cultural update rule
     p_update_C: float = 0.1  # Probability to attempt cultural update per step
-    p_mut: float = 0.001     # Probability of random cultural mutation per step
+    p_mut_culture: float = 0.01     # Probability of random cultural mutation per step
+    p_mut_strategy: float = 0.001    # Probability of random strategy mutation per step
 
     steps: int = 500
     seed: int = None     # Random seed for reproducibility
@@ -33,9 +36,10 @@ class SimConfig:
     run_id: int = -1     # Index of the specific run for a parameter set
 
     # --- ADD THIS LINE ---
-    label: str = ""     # Descriptive label for the simulation set (e.g., 'C=0.1', 'Heterogeneous')
+    # Descriptive label for the simulation set (e.g., 'C=0.1', 'Heterogeneous')
+    label: str = ""
     # ---------------------
-    
+
     # --- Methods for Batch Runs ---
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary, useful for logging."""
@@ -72,7 +76,8 @@ class SimConfig:
                 value = combo[i]
                 current_params[key] = value
                 # Create a meaningful ID part (handle floats carefully)
-                id_part = f"{key}{value:.3f}" if isinstance(value, float) else f"{key}{value}"
+                id_part = f"{key}{value:.3f}" if isinstance(
+                    value, float) else f"{key}{value}"
                 param_set_id_parts.append(id_part)
 
             # Assign a unique ID based on swept parameters
@@ -80,7 +85,8 @@ class SimConfig:
 
             # Create SimConfig, ensuring all fields are present
             config_fields = {f.name for f in fields(cls)}
-            valid_params = {k: v for k, v in current_params.items() if k in config_fields}
+            valid_params = {k: v for k,
+                            v in current_params.items() if k in config_fields}
             # Add default values for any missing base parameters if necessary
             # for f in fields(cls):
             #     if f.name not in valid_params and f.default != field.MISSING:
@@ -88,32 +94,33 @@ class SimConfig:
             #     elif f.name not in valid_params and f.default_factory != field.MISSING:
             #         valid_params[f.name] = f.default_factory()
 
-
             try:
                 configs.append(cls(**valid_params))
             except TypeError as e:
-                 print(f"Error creating SimConfig with params: {valid_params}")
-                 print(f"Missing or unexpected arguments: {e}")
-                 # Handle error appropriately, e.g., skip this combo or raise
+                print(f"Error creating SimConfig with params: {valid_params}")
+                print(f"Missing or unexpected arguments: {e}")
+                # Handle error appropriately, e.g., skip this combo or raise
 
         return configs
 
+
 # Example usage (remains the same)
 if __name__ == '__main__':
-     base = {
-         "L": 50, "initial_coop_ratio": 0.5, "K": 0.1, "steps": 200,
-         "sigma": 0.1, "K_C": 0.1, "p_update_C": 0.1, "p_mut": 0.001,
-         # "param_set_id": "base_example" # ID is now generated automatically
-     }
-     sweep = {
-         "b": np.linspace(1.1, 1.9, 3),
-         "C_dist": ["uniform", "normal"],
-         "mu": [0.3, 0.7],
-         # "p_update_C": [0.05, 0.2] # Example sweep
-     }
+    base = {
+        "L": 50, "initial_coop_ratio": 0.5, "K": 0.1, "steps": 200,
+        "sigma": 0.1, "K_C": 0.1, "p_update_C": 0.1, "p_mut": 0.001,
+        # "param_set_id": "base_example" # ID is now generated automatically
+    }
+    sweep = {
+        "b": np.linspace(1.1, 1.9, 3),
+        "C_dist": ["uniform", "normal"],
+        "mu": [0.3, 0.7],
+        # "p_update_C": [0.05, 0.2] # Example sweep
+    }
 
-     config_list = SimConfig.generate_param_sweep(base, sweep)
-     print(f"Generated {len(config_list)} configurations.")
-     if config_list:
-         print("First config:", config_list[0])
-         print("First config dict:", config_list[0].to_dict()) # run_id will be -1
+    config_list = SimConfig.generate_param_sweep(base, sweep)
+    print(f"Generated {len(config_list)} configurations.")
+    if config_list:
+        print("First config:", config_list[0])
+        # run_id will be -1
+        print("First config dict:", config_list[0].to_dict())

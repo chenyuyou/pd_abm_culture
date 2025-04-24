@@ -14,7 +14,8 @@ try:
 except ImportError:
     import sys
     import os
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    sys.path.insert(0, os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..')))
     from core.model import CulturalGame
     from utils.config import SimConfig
 
@@ -42,14 +43,15 @@ def run_single_simulation(config: SimConfig, steady_state_window=100) -> Dict[st
     model = CulturalGame(
         L=config.L, initial_coop_ratio=config.initial_coop_ratio, b=config.b, K=config.K,
         C_dist=config.C_dist, mu=config.mu, sigma=config.sigma, seed=run_seed,
-        K_C=config.K_C, p_update_C=config.p_update_C, p_mut=config.p_mut
+        K_C=config.K_C, p_update_C=config.p_update_C,
+        p_mut_culture=config.p_mut_culture,  # Changed from p_mut=config.p_mut
+        p_mut_strategy=config.p_mut_strategy  # Added this parameter
     )
 
     # Run the model (silence tqdm progress bar within parallel runs if desired)
     # model.run_model(config.steps) # Assumes run_model doesn't use tqdm or is managed
-    for _ in range(config.steps): # Manual loop to avoid nested tqdm
+    for _ in range(config.steps):  # Manual loop to avoid nested tqdm
         model.step()
-
 
     model_df = model.datacollector.get_model_vars_dataframe()
     results = {}
@@ -64,7 +66,8 @@ def run_single_simulation(config: SimConfig, steady_state_window=100) -> Dict[st
             if col in model_df.columns:
                 if col in NON_AVERAGE_REPORTERS:
                     # --- Take the LAST value for specific reporters ---
-                    results[f"{col}"] = model_df[col].iloc[-1] # Store raw last value
+                    # Store raw last value
+                    results[f"{col}"] = model_df[col].iloc[-1]
                     # Keep a consistent naming? Or make it clear it's not averaged?
                     # Let's use the plain name for now, processing script will handle it.
                     # results[f"last_{col}"] = model_df[col].iloc[-1] # Alternative naming
@@ -72,59 +75,63 @@ def run_single_simulation(config: SimConfig, steady_state_window=100) -> Dict[st
                     # --- Calculate Averages for standard reporters ---
                     results[f"avg_{col}"] = window_df[col].mean()
                     results[f"std_{col}"] = window_df[col].std()
-                else: # Should not happen if n_rows > 0, but for safety
+                else:  # Should not happen if n_rows > 0, but for safety
                     results[f"avg_{col}"] = np.nan
                     results[f"std_{col}"] = np.nan
                     if col in NON_AVERAGE_REPORTERS:
-                        results[f"{col}"] = None # Or appropriate null value like {} or []
+                        # Or appropriate null value like {} or []
+                        results[f"{col}"] = None
             else:
                 # Handle case where reporter column wasn't created (e.g., error in reporter func)
-                 print(f"Warning: Reporter column '{col}' not found in model_df for config {config.param_set_id}, run {config.run_id}.")
-                 results[f"avg_{col}"] = np.nan
-                 results[f"std_{col}"] = np.nan
-                 if col in NON_AVERAGE_REPORTERS:
-                      results[f"{col}"] = None
+                print(
+                    f"Warning: Reporter column '{col}' not found in model_df for config {config.param_set_id}, run {config.run_id}.")
+                results[f"avg_{col}"] = np.nan
+                results[f"std_{col}"] = np.nan
+                if col in NON_AVERAGE_REPORTERS:
+                    results[f"{col}"] = None
 
-    else: # No data collected
+    else:  # No data collected
         for col in model.datacollector.model_reporters.keys():
-             results[f"avg_{col}"] = np.nan
-             results[f"std_{col}"] = np.nan
-             if col in NON_AVERAGE_REPORTERS:
-                  results[f"{col}"] = None
-
+            results[f"avg_{col}"] = np.nan
+            results[f"std_{col}"] = np.nan
+            if col in NON_AVERAGE_REPORTERS:
+                results[f"{col}"] = None
 
     end_time = time.time()
 
     # Combine config and results
     result_dict = config.to_dict()
-    result_dict.update(results) # Add calculated results
+    result_dict.update(results)  # Add calculated results
     result_dict["runtime_seconds"] = end_time - start_time
 
     return result_dict
 
 
 def batch_run_parallel(config_list: List[SimConfig],
-                         num_workers: int = None,
-                         steady_state_window: int = 100) -> pd.DataFrame:
+                       num_workers: int = None,
+                       steady_state_window: int = 100) -> pd.DataFrame:
     """Runs simulations in parallel."""
     if num_workers is None:
         cpu_cores = mp.cpu_count()
         num_workers = max(1, cpu_cores - 1 if cpu_cores > 1 else 1)
 
-    print(f"Starting batch run with {len(config_list)} configurations using {num_workers} workers...")
+    print(
+        f"Starting batch run with {len(config_list)} configurations using {num_workers} workers...")
 
-    run_func = partial(run_single_simulation, steady_state_window=steady_state_window)
+    run_func = partial(run_single_simulation,
+                       steady_state_window=steady_state_window)
 
     pool = mp.Pool(processes=num_workers)
     results = []
     try:
-        results = list(tqdm(pool.imap_unordered(run_func, config_list), total=len(config_list), desc="Simulations"))
+        results = list(tqdm(pool.imap_unordered(
+            run_func, config_list), total=len(config_list), desc="Simulations"))
     except Exception as e:
-         print(f"\n--- Error during parallel execution ---")
-         print(e)
-         import traceback
-         traceback.print_exc()
-         print("--- Trying to collect partial results ---")
+        print(f"\n--- Error during parallel execution ---")
+        print(e)
+        import traceback
+        traceback.print_exc()
+        print("--- Trying to collect partial results ---")
     finally:
         pool.close()
         pool.join()
@@ -136,16 +143,22 @@ def batch_run_parallel(config_list: List[SimConfig],
         # Convert results to DataFrame, handle potential missing columns carefully
         return pd.DataFrame(results)
 
+
 # Example Usage (if needed for testing parallel.py itself)
 if __name__ == '__main__':
     print("Testing parallel execution...")
     test_configs = [
-        SimConfig(L=10, b=1.2, steps=20, seed=101, run_id=0, param_set_id="test1"),
-        SimConfig(L=10, b=1.8, steps=20, seed=102, run_id=0, param_set_id="test2"),
-        SimConfig(L=15, b=1.2, steps=20, seed=103, run_id=0, param_set_id="test3"),
-        SimConfig(L=15, b=1.8, steps=20, seed=104, run_id=0, param_set_id="test4"),
+        SimConfig(L=10, b=1.2, steps=20, seed=101,
+                  run_id=0, param_set_id="test1"),
+        SimConfig(L=10, b=1.8, steps=20, seed=102,
+                  run_id=0, param_set_id="test2"),
+        SimConfig(L=15, b=1.2, steps=20, seed=103,
+                  run_id=0, param_set_id="test3"),
+        SimConfig(L=15, b=1.8, steps=20, seed=104,
+                  run_id=0, param_set_id="test4"),
     ]
-    results_df = batch_run_parallel(test_configs, num_workers=2, steady_state_window=5)
+    results_df = batch_run_parallel(
+        test_configs, num_workers=2, steady_state_window=5)
 
     print("\n--- Batch Run Results ---")
     if not results_df.empty:
