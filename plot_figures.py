@@ -796,8 +796,8 @@ def plot_fig1_order_param(data, order_param_key_avg, sem_key, ylabel, filename_b
     ax.set_ylabel(ylabel)
     # Extract name like f_C or S
     title_str = ylabel.split("$\\langle$")[-1].split("$\\rangle$")[0]
-    ax.set_title(
-        f'Order Parameter $\\langle {title_str} \\rangle$ vs. Temptation $b$\n{fixed_params_str}')
+#    ax.set_title(
+#        f'Order Parameter $\\langle {title_str} \\rangle$ vs. Temptation $b$\n{fixed_params_str}')
     ax.legend(title='System Size $L$', loc='best', frameon=False)
     # Sensible limits (adjust if needed)
     if "Rate" in ylabel or "Index" in ylabel:
@@ -880,6 +880,12 @@ def plot_fig2_susceptibility(data, chi_key, ylabel, filename_base):
 
 
 # --- Figures 3, 4, 5: Finite-Size Scaling ---
+# ==============================================================================
+# Plotting Functions (Physica A Style) - Relevant Section
+# ==============================================================================
+# ... (other functions like save_plot, plot_fig1, plot_fig2) ...
+
+# --- Figures 3, 4, 5: Finite-Size Scaling ---
 def plot_fss_analysis(
     data: pd.DataFrame,
     op_col_avg: str,  # e.g., 'avg_CooperationRate'
@@ -947,9 +953,9 @@ def plot_fss_analysis(
             f"Error in FSS: No unique L values found in filtered data for fixed params {fixed_params_to_plot}.")
         return
 
-    # Data storage for log-log plots
-    fss_loglog_data = {'L': [], 'op_at_bc': [],
-                       'sus_peak': [], 'sus_peak_b': []}
+    # --- Data storage for log-log plots (REVISED) ---
+    op_log_data = {'L': [], 'op_at_bc': []}
+    sus_log_data = {'L': [], 'sus_peak': [], 'sus_peak_b': []}
 
     # --- Create Figure for Collapse (Fig 5) ---
     fig_collapse, axes_collapse = plt.subplots(1, 2, figsize=(12, 5))
@@ -965,7 +971,7 @@ def plot_fss_analysis(
 
     # --- Loop through L to gather data and plot collapse ---
     print("Processing data for FSS plots...")
-    peak_idx = None
+    peak_idx = None # Initialize peak_idx outside loop (though re-evaluated inside)
     for i, L in enumerate(tqdm(unique_Ls, desc="FSS per L")):
         # Filtered data is already for the correct fixed params, just subset by L
         subset = filtered_data[filtered_data[L_param_col]
@@ -975,6 +981,11 @@ def plot_fss_analysis(
 
         # --- Data for Log-Log Plots (Fig 3 & 4) ---
         # Order parameter at b_c (find closest b value in data)
+        op_at_bc = np.nan # Initialize to nan
+        sus_peak = np.nan
+        sus_peak_b = np.nan
+        sus_peak_idx = None # Initialize inside loop per L
+
         # Ensure b_c is within the range of b_param_col values for this L subset, or extrapolation is okay
         if len(subset[b_param_col]) > 1:  # Need at least 2 b values to find closest
             # Ensure b_c is within or close to the range of b values for this L
@@ -987,62 +998,59 @@ def plot_fss_analysis(
                 print(
                     f"Warning: b_c={b_c:.4f} is outside the b range for L={L} ({subset[b_param_col].min():.3f} - {subset[b_param_col].max():.3f}). Using closest point.")
                 b_closest_idx = (subset[b_param_col] - b_c).abs().idxmin()
-                op_at_bc = subset.loc[b_closest_idx, op_col_avg]
-                # op_at_bc = np.nan # Or set to NaN if extrapolation is not desired
+                # Check if b_closest_idx is valid before accessing loc
+                if b_closest_idx in subset.index:
+                    op_at_bc = subset.loc[b_closest_idx, op_col_avg]
+                # else: op_at_bc remains np.nan
 
             # Susceptibility peak value and location
             if sus_col in subset.columns:
                 # Ensure susceptibility column has valid data before finding peak
-                if subset[sus_col].replace([np.inf, -np.inf], np.nan).dropna().empty:
-                    sus_peak_idx = None
-                    sus_peak = np.nan
-                    sus_peak_b = np.nan
-                    # print(f"Warning: No valid susceptibility data found for peak detection for L={L}.")
+                cleaned_sus = subset[sus_col].replace([np.inf, -np.inf], np.nan).dropna()
+                if cleaned_sus.empty:
+                    # sus_peak, sus_peak_b, sus_peak_idx remain NaN/None
+                    pass # print(f"Warning: No valid susceptibility data found for peak detection for L={L}.")
                 else:
-                    sus_peak_idx = subset[sus_col].idxmax()
-                    # Ensure index exists before accessing loc
-                    if peak_idx in subset.index:
+                    sus_peak_idx = cleaned_sus.idxmax() # Use idxmax on cleaned data
+                    # Ensure index exists in the *original* subset before accessing loc
+                    if sus_peak_idx in subset.index:
                         sus_peak = subset.loc[sus_peak_idx, sus_col]
                         sus_peak_b = subset.loc[sus_peak_idx, b_param_col]
-                    else:
-                        sus_peak = np.nan  # Should not happen with idxmax on valid data
-                        sus_peak_b = np.nan
-            else:
-                sus_peak_idx = None
-                sus_peak = np.nan
-                sus_peak_b = np.nan
+                    # else: sus_peak, sus_peak_b remain np.nan
+
+            # else: # sus_col not found
+                # sus_peak, sus_peak_b, sus_peak_idx remain NaN/None
                 # print(f"Warning: Susceptibility column '{sus_col}' not found for L={L}. Cannot plot Fig 4.")
-        else:  # Not enough data points for this L
-            op_at_bc = np.nan
-            sus_peak = np.nan
-            sus_peak_b = np.nan
+        # else:  # Not enough data points for this L
+            # op_at_bc, sus_peak, sus_peak_b remain np.nan
             # print(f"Warning: Not enough data points ({len(subset)}) for L={L} to perform FSS analysis.")
 
-        # Store log-log data if valid
+        # --- Store data independently (REVISED) ---
         if pd.notna(op_at_bc) and pd.notna(L) and L > 0:
-            fss_loglog_data['L'].append(L)
-            fss_loglog_data['op_at_bc'].append(op_at_bc)
+            op_log_data['L'].append(L)
+            op_log_data['op_at_bc'].append(op_at_bc)
 
         if pd.notna(sus_peak) and pd.notna(L) and L > 0:
-            # Only add L once if both OP and Sus are valid, but need unique entries for the peak dataframes
-            fss_loglog_data['sus_peak'].append(sus_peak)
-            fss_loglog_data['sus_peak_b'].append(sus_peak_b)
-            # Add L here *only* if it wasn't just added for op_at_bc for the same i (implicit unique check by separate appends)
-            if len(fss_loglog_data['L']) < len(fss_loglog_data['sus_peak']):
-                # Add L again if this is a new L for sus_peak
-                fss_loglog_data['L'].append(L)
+            sus_log_data['L'].append(L)
+            sus_log_data['sus_peak'].append(sus_peak)
+            sus_log_data['sus_peak_b'].append(sus_peak_b)
+        # --- End revised storage ---
+
 
         # --- Data for Collapse Plot (Fig 5) ---
         b_values = subset[b_param_col].values
         op_values = subset[op_col_avg].values
-        sus_values = subset[sus_col].values
+        sus_values = subset[sus_col].values if sus_col in subset.columns else np.full_like(b_values, np.nan) # Handle missing sus_col
 
-        # Filter invalid values for scaling (e.g., NaN, Inf, non-positive for logs if needed)
-        valid_indices = pd.notna(op_values) & pd.notna(
-            sus_values)  # Start with just NaN/Inf
-        # Add checks for non-positive if taking log:
+        # Filter invalid values for scaling (e.g., NaN, Inf)
+        # Check for op_col_avg and sus_col existing first
+        valid_op = pd.notna(op_values) if op_col_avg in subset.columns else np.full_like(b_values, False, dtype=bool)
+        valid_sus = pd.notna(sus_values) if sus_col in subset.columns else np.full_like(b_values, False, dtype=bool)
+        valid_indices = valid_op & valid_sus
+        # Add checks for non-positive if taking log: # Not needed for standard FSS plots
         # valid_indices = valid_indices & (op_values > 0) & (sus_values > 0) # For log scale
 
+        # Check for valid parameters and data presence
         if not np.any(valid_indices) or np.abs(nu) < 1e-9 or L is None or L <= 0 or pd.isna(L):
             # print(f"Skipping collapse plot for L={L} due to invalid data or nu={nu}.")
             continue  # Skip if no valid data, nu is zero/invalid, or L is invalid
@@ -1051,31 +1059,44 @@ def plot_fss_analysis(
         op_valid = op_values[valid_indices]
         sus_valid = sus_values[valid_indices]
 
+        # Check if exponents are valid
+        if pd.isna(nu) or pd.isna(beta) or pd.isna(gamma) or nu == 0:
+            print(f"Warning: Invalid FSS exponents (nu={nu}, beta={beta}, gamma={gamma}) for L={L}. Skipping collapse plot.")
+            continue
+
         # Calculate scaled variables
         t = b_valid - b_c  # Reduced parameter
 
-        x_scaled = t * (L**(1/nu))
-        y_op_scaled = op_valid * (L**(beta/nu))
-        y_sus_scaled = sus_valid * (L**(-gamma/nu))
+        try:
+            x_scaled = t * (L**(1/nu))
+            y_op_scaled = op_valid * (L**(beta/nu))
+            y_sus_scaled = sus_valid * (L**(-gamma/nu))
 
-        # Plot collapse data
-        style_kwargs = get_style_kwargs(i, num_L, base_markersize)
-        current_collapse_markersize = base_markersize * collapse_markersize_scale
+            # Plot collapse data
+            style_kwargs = get_style_kwargs(i, num_L, base_markersize)
+            current_collapse_markersize = base_markersize * collapse_markersize_scale
 
-        ax_op_collapse.plot(x_scaled, y_op_scaled,
-                            marker=style_kwargs['marker'],
-                            color=style_kwargs['color'],
-                            linestyle='',  # Points only for collapse
-                            markersize=current_collapse_markersize,
-                            # Label every L for collapse legend
-                            label=f"$L={L}$")
+            ax_op_collapse.plot(x_scaled, y_op_scaled,
+                                marker=style_kwargs['marker'],
+                                color=style_kwargs['color'],
+                                linestyle='',  # Points only for collapse
+                                markersize=current_collapse_markersize,
+                                # Label every L for collapse legend
+                                label=f"$L={L}$")
 
-        ax_sus_collapse.plot(x_scaled, y_sus_scaled,
-                             marker=style_kwargs['marker'],
-                             color=style_kwargs['color'],
-                             linestyle='',
-                             markersize=current_collapse_markersize,
-                             label=f"$L={L}$")
+            ax_sus_collapse.plot(x_scaled, y_sus_scaled,
+                                 marker=style_kwargs['marker'],
+                                 color=style_kwargs['color'],
+                                 linestyle='',
+                                 markersize=current_collapse_markersize,
+                                 label=f"$L={L}$")
+        except ZeroDivisionError:
+             print(f"Warning: Division by zero encountered during scaling for L={L} (likely nu={nu}). Skipping collapse plot.")
+             continue
+        except ValueError as e:
+             print(f"Warning: ValueError during scaling for L={L}: {e}. Skipping collapse plot.")
+             continue
+
 
     # --- Finalize Collapse Plot (Fig 5) ---
     ax_op_collapse.set_xlabel(x_scaled_label)
@@ -1101,12 +1122,14 @@ def plot_fss_analysis(
     plt.close(fig_collapse)
 
     # --- Create and Plot Log-Log Plots (Fig 3 & 4) ---
-    # Need to handle potential duplicates in L if both OP and Sus peaks were valid
-    df_loglog_op = pd.DataFrame({k: fss_loglog_data[k] for k in [
-                                'L', 'op_at_bc']}).dropna().drop_duplicates(subset=['L']).sort_values('L')
-    # Ensure sus_peak_b corresponds to sus_peak, so group by L and get first valid peak/b_peak
-    df_loglog_sus = pd.DataFrame({k: fss_loglog_data[k] for k in ['L', 'sus_peak', 'sus_peak_b']}).dropna(
-        subset=['L', 'sus_peak']).groupby('L').first().reset_index().sort_values('L')
+    # (REVISED DataFrame Creation using separate dicts)
+    # Drop duplicates just in case (though unlikely with corrected logic)
+    df_loglog_op = pd.DataFrame(op_log_data).dropna().drop_duplicates(subset=['L']).sort_values('L')
+
+    # Create df_loglog_sus from sus_log_data
+    df_loglog_sus = pd.DataFrame(sus_log_data).dropna(
+        subset=['L', 'sus_peak']).drop_duplicates(subset=['L']).sort_values('L')
+    # Using drop_duplicates is generally preferred over groupby().first() here
 
     beta_nu_fit = np.nan
     if not df_loglog_op.empty:
@@ -1128,7 +1151,7 @@ def plot_fss_analysis(
                     log_C_fit = coeffs[1]  # Intercept is log10(C)
 
                     # Plot the fitted line across the range of L values used for fitting
-                    fit_line_L = np.logspace(log_L.min(), log_L.max(), 50)
+                    fit_line_L = np.logspace(np.log10(fit_data_op['L'].min()), np.log10(fit_data_op['L'].max()), 50) # Use min/max of actual L used for fit
                     # Use fitted beta_nu
                     fit_line_op = 10**(log_C_fit + (-beta_nu_fit)
                                        * np.log10(fit_line_L))
@@ -1138,6 +1161,10 @@ def plot_fss_analysis(
                 except np.linalg.LinAlgError:
                     beta_nu_fit = np.nan
                     print("Warning: Could not perform linear fit for OP log-log plot.")
+                except ValueError as e: # Catch cases like log10 of non-positive
+                    beta_nu_fit = np.nan
+                    print(f"Warning: Error during OP log-log fit: {e}")
+
             else:
                 beta_nu_fit = np.nan
         else:
@@ -1176,7 +1203,7 @@ def plot_fss_analysis(
                     log_C_fit_sus = coeffs[1]  # Intercept is log10(C')
 
                     # Plot the fitted line across the range of L values used for fitting
-                    fit_line_L = np.logspace(log_L.min(), log_L.max(), 50)
+                    fit_line_L = np.logspace(np.log10(fit_data_sus['L'].min()), np.log10(fit_data_sus['L'].max()), 50) # Use min/max of actual L used for fit
                     # Use fitted gamma_nu
                     fit_line_sus = 10**(log_C_fit_sus +
                                         gamma_nu_fit * np.log10(fit_line_L))
@@ -1187,6 +1214,9 @@ def plot_fss_analysis(
                     gamma_nu_fit = np.nan
                     print(
                         "Warning: Could not perform linear fit for Susceptibility log-log plot.")
+                except ValueError as e: # Catch cases like log10 of non-positive
+                    gamma_nu_fit = np.nan
+                    print(f"Warning: Error during Susceptibility log-log fit: {e}")
             else:
                 gamma_nu_fit = np.nan
         else:
@@ -1203,21 +1233,38 @@ def plot_fss_analysis(
         plt.close(fig_log_sus)
 
         # Optional: Plot bc(L) scaling (Fig X)
-        if len(df_loglog_sus) > 1 and pd.notna(nu) and nu != 0:
-            fig_bcL, ax_bcL = plt.subplots(figsize=(6, 4))
-            x_bc_scale = df_loglog_sus['L']**(-1/nu)
-            ax_bcL.plot(
-                x_bc_scale, df_loglog_sus['sus_peak_b'], 'd-', color='purple')
-            ax_bcL.set_xlabel(r'$L^{-1/\nu}$')
-            ax_bcL.set_ylabel(r'$b_c(L)$')
-            ax_bcL.set_title(
-                f'$b_c(L)$ Scaling (using $\\nu={nu:.3f}$)\n{fixed_params_str}')
-            # ax_bcL.legend() # No legend needed for single line
-            ax_bcL.grid(True, which='both', linestyle=':', alpha=0.6)
-            save_plot(fig_bcL, f"{filename_base_with_params}_figX_bc_scaling")
-            plt.close(fig_bcL)
+        if 'sus_peak_b' in df_loglog_sus.columns and len(df_loglog_sus) > 1 and pd.notna(nu) and nu != 0:
+            df_bc_plot = df_loglog_sus[['L', 'sus_peak_b']].dropna() # Select cols and drop NaNs
+            if len(df_bc_plot) > 1:
+                fig_bcL, ax_bcL = plt.subplots(figsize=(6, 4))
+                try:
+                    x_bc_scale = df_bc_plot['L']**(-1/nu)
+                    ax_bcL.plot(x_bc_scale, df_bc_plot['sus_peak_b'], 'd-', color='purple')
+                    ax_bcL.set_xlabel(r'$L^{-1/\nu}$')
+                    ax_bcL.set_ylabel(r'$b_c(L)$')
+                    ax_bcL.set_title(
+                        f'$b_c(L)$ Scaling (using $\\nu={nu:.3f}$)\n{fixed_params_str}')
+                    # ax_bcL.legend() # No legend needed for single line
+                    ax_bcL.grid(True, which='both', linestyle=':', alpha=0.6)
+                    # Perform a linear fit to estimate b_c in thermodynamic limit
+                    try:
+                        coeffs_bc = np.polyfit(x_bc_scale, df_bc_plot['sus_peak_b'], 1)
+                        bc_thermo_limit = coeffs_bc[1] # Intercept at L^-1/nu = 0 (L -> inf)
+                        ax_bcL.axhline(bc_thermo_limit, color='gray', linestyle='--', label=f'$b_c(L\\to\\infty) \\approx {bc_thermo_limit:.4f}$')
+                        ax_bcL.legend(loc='best', frameon=False)
+                        print(f"Extrapolated b_c(L->inf) = {bc_thermo_limit:.4f}")
+                    except Exception as fit_e:
+                         print(f"Warning: Could not fit bc(L) scaling: {fit_e}")
+
+                    save_plot(fig_bcL, f"{filename_base_with_params}_figX_bc_scaling")
+                    plt.close(fig_bcL)
+                except (ZeroDivisionError, ValueError) as scale_e:
+                    print(f"Warning: Could not calculate L**(-1/nu) for bc(L) plot: {scale_e}")
+                    plt.close(fig_bcL) # Close the figure if scaling failed
+            else:
+                 print("Skipping bc(L) scaling plot: Not enough valid bc(L) data points.")
         else:
-            print("Skipping bc(L) scaling plot: Not enough data or invalid nu.")
+            print("Skipping bc(L) scaling plot: Not enough data, missing 'sus_peak_b', or invalid nu.")
 
     else:
         print("Skipping Fig 4 (Susceptibility Scaling) and bc(L) Scaling: No valid data collected.")
@@ -1225,12 +1272,7 @@ def plot_fss_analysis(
 
     print(
         f"FSS Log-Log Fit Estimates: beta/nu ~ {beta_nu_fit:.3f}, gamma/nu ~ {gamma_nu_fit:.3f}")
-    # print("Compare these fits to your input beta/nu and gamma/nu estimates.")
-    # Optional: Plot peak location bc(L) vs L -> estimate nu
-    # fig_bcL, ax_bcL = plt.subplots(figsize=(6, 4))
-    # ax_bcL.plot(df_loglog['L']**(-1/nu), df_loglog['sus_peak_b'], 'd-') # Example plot bc(L) vs L^(-1/nu)
-    # save_plot(fig_bcL, f"{filename_base_prefix}_figX_bc_scaling")
-    # plt.close(fig_bcL)
+
 
 
 # --- Figure 6: Cluster Size Distribution P(s) ---
@@ -1585,6 +1627,8 @@ def plot_fig7_boundary_effects(data, filename_base):
 
 # --- Figure 8: Phase Diagram ---
 
+# --- Figure 8: Phase Diagram ---
+
 def plot_fig8_phase_diagram(data, filename_base):
     """ Plots a 2D phase diagram (heatmap). """
     print("Plotting Phase Diagram...")
@@ -1606,46 +1650,70 @@ def plot_fig8_phase_diagram(data, filename_base):
     # Identify other fixed parameters for this phase diagram scan
     sim_config_fields = {f.name for f in fields(SimConfig)}
     # Columns in data that are SimConfig fields but NOT p1_name, p2_name, or run identifiers
-    fixed_params_cols = [
-        col for col in data.columns
-        if col in sim_config_fields and col not in [p1_name, p2_name, 'seed', 'run_id', 'param_set_id', 'label', 'steps', 'steady_state_window']
-    ]
-    # Ensure L is included if it's not swept but is fixed
-    if 'L' in data.columns and 'L' not in [p1_name, p2_name] and 'L' not in fixed_params_cols:
-        fixed_params_cols.append('L')
+    # Also exclude basic control params that are less likely to be fixed features for a *single* phase diagram plot
+    exclude_from_fixed = [p1_name, p2_name, 'seed', 'run_id', 'param_set_id',
+                          'steps', 'steady_state_window', target_reporter_avg]
+    # Also exclude result columns (avg_, std_, chi_)
+    exclude_from_fixed.extend([c for c in data.columns if c.startswith(('avg_', 'std_', 'chi_', 'sem_'))])
+    # Ensure L is handled correctly - it's fixed for the PD but might be named differently
+    # If phasediagram_L is used, 'L' column might hold that value
+    pd_L_val = PARAMS.get('phasediagram_L')
 
-    # Group by the sweep parameters and fixed parameters to average over runs
-    grouping_cols = [p1_name, p2_name] + sorted(fixed_params_cols)
+    fixed_params_cols = []
+    first_fixed_params_values = {}
+
+    # Try to determine fixed parameters from the first row of data
+    if not data.empty:
+        first_row = data.iloc[0]
+        potential_fixed_cols = [
+            col for col in data.columns
+            if col in sim_config_fields and col not in exclude_from_fixed
+        ]
+        # Check if values are constant across the dataset (optional, but safer)
+        # For simplicity, we assume the first row represents the fixed values
+        for col in potential_fixed_cols:
+            # Special check for L: ensure it matches phasediagram_L if L column exists
+            if col == 'L' and pd_L_val is not None:
+                 if pd.notna(first_row[col]) and np.isclose(first_row[col], pd_L_val):
+                     first_fixed_params_values[col] = first_row[col]
+                 # Else: L column exists but doesn't match pd_L_val, maybe don't include? Or warn?
+            elif col != 'L': # Handle other potential fixed parameters
+                 first_fixed_params_values[col] = first_row[col]
+
+        # If L wasn't found as a column but pd_L_val exists, add it
+        if 'L' not in first_fixed_params_values and pd_L_val is not None:
+             first_fixed_params_values['L'] = pd_L_val
+
+    print(f"Identified fixed parameters for phase diagram plot: {first_fixed_params_values}")
+
+    # Group by the sweep parameters to average over runs FOR THE IDENTIFIED FIXED PARAMS
+    # Filter data first based on the identified fixed parameters
+    filtered_data_for_pd = filter_data_by_fixed_params(data, first_fixed_params_values)
+
+    if filtered_data_for_pd.empty:
+        print(f"Error plotting Fig 8: No data remaining after filtering for fixed parameters: {first_fixed_params_values}")
+        return
+
+    grouping_cols = [p1_name, p2_name] # Group only by sweep parameters now
     print(f"Grouping phase diagram data by: {grouping_cols}")
 
     try:
-        # Group by all relevant columns (sweep + fixed) before calculating mean
-        grouped_pd = data.groupby(grouping_cols)[
+        # Group the *filtered* data by sweep parameters and average
+        grouped_pd = filtered_data_for_pd.groupby(grouping_cols)[
             target_reporter_avg].mean().reset_index()
 
-        # Select one set of fixed parameters to plot the heatmap
-        # Get the first unique combination of fixed parameters
-        if fixed_params_cols:
-            first_fixed_params_values = grouped_pd[fixed_params_cols].iloc[0].to_dict(
-            )
+        if grouped_pd.empty:
             print(
-                f"Plotting phase diagram for fixed parameters: {first_fixed_params_values}")
-            # Filter the grouped data to only include this set of fixed parameters
-            filtered_grouped_pd = filter_data_by_fixed_params(
-                grouped_pd, first_fixed_params_values)
-        else:
-            print("No additional fixed parameters found for phase diagram.")
-            filtered_grouped_pd = grouped_pd
-            first_fixed_params_values = {}  # Empty dict
-
-        if filtered_grouped_pd.empty:
-            print(
-                f"Error plotting Fig 8: Filtered grouped data is empty for fixed params {first_fixed_params_values}.")
+                f"Error plotting Fig 8: Grouped data is empty for fixed params {first_fixed_params_values}.")
             return
 
-        heatmap_data = filtered_grouped_pd.pivot(
+        heatmap_data = grouped_pd.pivot(
             index=p2_name, columns=p1_name, values=target_reporter_avg)
 
+    except KeyError as e:
+         print(f"Error during grouping/pivoting: Missing column {e}. Check parameter names.")
+         print(f"Available columns in filtered data: {filtered_data_for_pd.columns.tolist()}")
+         return
     except Exception as e:
         print(
             f"Error processing phase diagram data or pivoting for heatmap: {e}")
@@ -1666,28 +1734,22 @@ def plot_fig8_phase_diagram(data, filename_base):
                 cbar_kws={'label': target_reporter_avg.replace('avg_', '$\\langle$') + '$\\rangle$'})
 
     # Improve axis labels
-    ax.set_xlabel(f'{p1_name}' if p1_name != 'b' else 'Temptation ($b$)')
-    ax.set_ylabel(f'{p2_name}' if p2_name !=
-                  'K_C' else 'Cultural Noise ($K_C$)')
+    p1_label = f'{p1_name}' if p1_name != 'b' else 'Temptation ($b$)'
+    p2_label = f'{p2_name}' if p2_name != 'K_C' else 'Cultural Noise ($K_C$)'
+    ax.set_xlabel(p1_label)
+    ax.set_ylabel(p2_label)
 
-    # Add fixed parameters to Fig 8 title
+    # Add fixed parameters to Fig 8 title using the identified values
     fixed_params_str_title = get_fixed_params_string(first_fixed_params_values)
     ax.set_title(f'Phase Diagram {fixed_params_str_title}')
-
-    # Ensure correct orientation (heatmap index often becomes y-axis)
-    # If index values are decreasing, seaborn plots them from bottom to top by default
-    # To have smallest value at the bottom, y-axis should not be inverted
-    # Let's keep default heatmap behavior unless needed
 
     # Manually set y-axis ticks and labels
     y_labels = heatmap_data.index.tolist()
     if y_labels:
         y_ticks = np.arange(len(y_labels)) + 0.5  # heatmap ticks are centered
         ax.set_yticks(y_ticks)
-        # Format labels - use 4 significant figures for general parameters, more for specific ones if needed
+        # Format labels - use 4 significant figures for general parameters
         ax.set_yticklabels([f'{y:.4g}' for y in y_labels])
-    # Rotate y-axis labels if needed (e.g., if they overlap)
-    # plt.yticks(rotation=0)
 
     # Manually set x-axis ticks and labels
     x_labels = heatmap_data.columns.tolist()
@@ -1697,21 +1759,35 @@ def plot_fig8_phase_diagram(data, filename_base):
         # Format labels - use 3 decimal places for 'b', 4 significant figures for others
         ax.set_xticklabels(
             [f'{x:.3f}' if p1_name == 'b' else f'{x:.4g}' for x in x_labels])
-    # Rotate x-axis labels if needed
-    # plt.xticks(rotation=45, ha='right') # Example rotation
+        # Optionally rotate x-axis labels if they overlap
+        # plt.xticks(rotation=45, ha='right')
 
     plt.tight_layout()
 
+    # --- MODIFIED FILENAME GENERATION ---
     # Update filename to include fixed parameters used for this specific heatmap
     filename = filename_base
-    # Add fixed parameters to filename, except L which might be implicitly included in phasediagram_L name
-    # Let's include all fixed params for clarity in filename
+    # Add fixed parameters to filename
     for param_name, value in first_fixed_params_values.items():
-        # Use .4g for consistency
-        filename += f"_{param_name}{value:.4g}".replace('.', 'p')
+        # Check value type before formatting
+        if isinstance(value, (int, float)):
+            # If it's a number, format using .4g and replace dot
+            filename += f"_{param_name}{value:.4g}".replace('.', 'p')
+        elif isinstance(value, str):
+            # If it's a string, just append it (replace dots if needed)
+            filename += f"_{param_name}{value}".replace('.', 'p')
+        else:
+            # Handle other types if necessary, or just convert to string
+            try:
+                filename += f"_{param_name}{str(value)}".replace('.', 'p')
+            except Exception: # Fallback
+                 filename += f"_{param_name}_unknown"
+    # --- END OF MODIFICATION ---
 
     save_plot(fig, filename)
     plt.close(fig)
+
+
 
 
 # --- Snapshot Plotting ---
@@ -1742,10 +1818,27 @@ def run_and_save_snapshot(b_value, L_snap, filename_tag="snap"):
     filename = f"snapshot_{filename_tag}_L{L_snap}_b{b_value:.2f}".replace(
         '.', 'p')
     # Add other fixed parameters to filename
+    # Generate filename based on these fixed parameters
+    filename = f"snapshot_{filename_tag}_L{L_snap}_b{b_value:.2f}".replace(
+        '.', 'p')
+    # Add other fixed parameters to filename
     for param_name, value in snapshot_fixed_params.items():
         if param_name not in ['L', 'b']:  # Already included L and b
-            # Use .3g for consistency
-            filename += f"_{param_name}{value:.3g}".replace('.', 'p')
+            # --- Check value type before formatting ---
+            if isinstance(value, (int, float)):
+                # If it's a number, format using .3g and replace dot
+                filename += f"_{param_name}{value:.3g}".replace('.', 'p')
+            elif isinstance(value, str):
+                # If it's a string, just append it (optionally replace dots if needed, though unlikely for C_dist)
+                # We generally don't expect problematic characters like '.' in C_dist name,
+                # but replacing '.' just in case doesn't hurt.
+                filename += f"_{param_name}{value}".replace('.', 'p')
+            else:
+                # Handle other types if necessary, or just convert to string
+                try:
+                    filename += f"_{param_name}{str(value)}".replace('.', 'p')
+                except Exception: # Fallback if str conversion fails
+                     filename += f"_{param_name}_unknown"
 
     snapshot_filename = os.path.join(SNAPSHOT_DATA_DIR, f"{filename}.pkl")
 
